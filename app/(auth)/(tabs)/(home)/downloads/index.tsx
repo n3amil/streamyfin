@@ -23,7 +23,7 @@ import { useTranslation } from "react-i18next";
 import { Alert, ScrollView, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { toast } from "sonner-native";
-
+import * as FileSystem from 'expo-file-system'; 
 export default function page() {
   const navigation = useNavigation();
   const { t } = useTranslation();
@@ -33,31 +33,33 @@ export default function page() {
   const [settings] = useSettings();
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
 
-  const movies = useMemo(() => {
-    try {
-      return downloadedFiles?.filter((f) => f.item.Type === "Movie") || [];
-    } catch {
-      migration_20241124();
-      return [];
-    }
-  }, [downloadedFiles]);
+const [movies, setMovies] = useState([]);
 
-  const groupedBySeries = useMemo(() => {
-    try {
-      const episodes = downloadedFiles?.filter(
-        (f) => f.item.Type === "Episode",
-      );
-      const series: { [key: string]: DownloadedItem[] } = {};
-      episodes?.forEach((e) => {
-        if (!series[e.item.SeriesName!]) series[e.item.SeriesName!] = [];
-        series[e.item.SeriesName!].push(e);
-      });
-      return Object.values(series);
-    } catch {
-      migration_20241124();
-      return [];
+useEffect(() => {
+  const cleanAndFilterDownloads = async () => {
+    if (!downloadedFiles) return;
+
+    const validMovies = [];
+    for (const f of downloadedFiles) {
+      const type = f?.item?.Type;
+      const uri = f?.item?.uri;
+
+      if (type === "Movie") {
+        validMovies.push(f);
+      } else if (uri) {
+        try {
+          await FileSystem.deleteAsync(uri, { idempotent: true });
+        } catch (e) {
+          console.warn("Failed to delete file:", uri, e);
+        }
+      }
     }
-  }, [downloadedFiles]);
+
+    setMovies(validMovies);
+  };
+
+  cleanAndFilterDownloads();
+}, [downloadedFiles]);
 
   const insets = useSafeAreaInsets();
 
